@@ -24,3 +24,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.crt-overlay {
+  background:
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.012), rgba(0, 0, 255, 0.03));
+  background-size: 100% 3px, 3px 100%;
+}
+
+.dither-pattern {
+  background-image: radial-gradient(rgba(254, 152, 33, 0.17) 1px, transparent 0);
+  background-size: 4px 4px;
+}
+
+.scanline {
+  height: 120px;
+  opacity: 0.12;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(254, 152, 33, 0.08) 50%, rgba(0, 0, 0, 0) 100%);
+  animation: scanline-move 8s linear infinite;
+}
+
+.marquee-track {
+  animation: marquee 24s linear infinite;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes scanline-move {
+  from {
+    transform: translateY(-120px);
+  }
+
+  to {
+    transform: translateY(calc(100vh + 120px));
+  }
+}
