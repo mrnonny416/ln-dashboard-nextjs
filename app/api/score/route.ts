@@ -15,7 +15,7 @@ export async function GET() {
         },
       },
     }),
-    prisma.score_jan_feb_2026.findMany(),
+    prisma.score_Temp.findMany(),
     prisma.player.findMany({
       select: {
         id: true,

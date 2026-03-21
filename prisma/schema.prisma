@@ -110,7 +110,7 @@ model Score {
   @@index([time_ms])
 }
 
-model Score_jan_feb_2026 {
+model Score_Temp {
   id        Int      @id @default(autoincrement())
   player_id Int
   time_ms   Int      @db.UnsignedInt
