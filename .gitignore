@@ -40,4 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/app/generated/prisma
+# Prisma - exclude only platform-specific binaries, keep generated code
+app/generated/prisma/*.node
+app/generated/prisma/*.so
+app/generated/prisma/*.so.node
