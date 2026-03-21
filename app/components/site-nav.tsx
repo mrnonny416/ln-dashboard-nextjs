@@ -17,8 +17,9 @@ type NavItem = {
     match: (pathname: string) => boolean;
 };
 
-const commonNavItems: NavItem[] = [
-    { href: "/", label: "HOME", match: (pathname) => pathname === "/" },
+const homeNavItem: NavItem = { href: "/", label: "HOME", match: (pathname) => pathname === "/" };
+
+const authedNavItems: NavItem[] = [
     { href: "/dashboard", label: "DASHBOARD", match: (pathname) => pathname.startsWith("/dashboard") }
 ];
 
@@ -60,8 +61,10 @@ export default function SiteNav() {
         };
     }, []);
 
-    const authedItems = isAdmin ? [...commonNavItems, ...adminOnlyNavItems] : commonNavItems;
-    const navItems = isAuthenticated ? authedItems : [...commonNavItems, ...guestNavItems];
+    const authedItems = isAdmin
+        ? [homeNavItem, ...authedNavItems, ...adminOnlyNavItems]
+        : [homeNavItem, ...authedNavItems];
+    const navItems = isAuthenticated ? authedItems : [homeNavItem, ...guestNavItems];
 
     return (
         <nav className="border-b border-zinc-800 bg-[#0e0e0e] px-4 py-3">
