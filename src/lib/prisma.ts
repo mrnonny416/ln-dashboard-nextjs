@@ -1,13 +1,13 @@
 // ป้องกันการสร้าง client ซ้ำ (สำคัญมากใน Next.js dev mode)
 
-import { PrismaClient } from '@/app/generated/prisma/client'
+import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = global as unknown as {
-  prisma: PrismaClient
-}
+  prisma: PrismaClient;
+};
 
 export const prisma =
   globalForPrisma.prisma ||
-  new PrismaClient()
+  new PrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
