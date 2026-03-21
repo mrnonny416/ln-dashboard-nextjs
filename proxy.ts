@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
 function isProtectedPath(pathname: string): boolean {
-  return pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+  return (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/gamelog")
+  );
+}
+
+function isAdminOnlyPath(pathname: string): boolean {
+  return pathname.startsWith("/admin") || pathname.startsWith("/gamelog");
 }
 
 export async function proxy(request: NextRequest) {
@@ -14,7 +22,7 @@ export async function proxy(request: NextRequest) {
 
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   });
 
   if (!token) {
@@ -23,7 +31,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (pathname.startsWith("/admin") && token.role !== "ADMIN") {
+  if (isAdminOnlyPath(pathname) && token.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -31,5 +39,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/gamelog/:path*"],
 };
