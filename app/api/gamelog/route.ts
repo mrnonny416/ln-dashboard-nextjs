@@ -1,7 +1,16 @@
 import { prisma } from '@/src/lib/prisma'
 
 export async function GET() {
-  const users = await prisma.userPlayLog.findMany()
+  const logs = await prisma.collectLog.findMany({
+    orderBy: { start_play: 'desc' },
+    include: {
+      Invoice: {
+        select: {
+          status: true,
+        },
+      },
+    },
+  })
 
-  return Response.json(users)
+  return Response.json(logs)
 }

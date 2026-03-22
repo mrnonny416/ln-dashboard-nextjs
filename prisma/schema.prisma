@@ -59,99 +59,78 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model GameSession {
-  id               Int              @id @default(autoincrement())
-  player_id        Int
-  is_win           Boolean          @default(false)
-  total_time_ms    Int?             @db.UnsignedInt
-  fruits_collected Int              @default(0) @db.UnsignedInt
-  started_at       DateTime         @default(now())
-  ended_at         DateTime?
-  Player           Player           @relation(fields: [player_id], references: [id])
-  SessionAttempt   SessionAttempt[]
-
-  @@index([player_id])
-  @@index([started_at])
-}
-
 model Invoice {
-  id           Int       @id @default(autoincrement())
-  UserID       String    @db.VarChar(255)
-  payment_hash String    @unique @db.VarChar(255)
-  bolt11       String    @db.Text
-  amount_sats  Int       @db.UnsignedInt
-  memo         String?   @db.VarChar(255)
-  status       String    @default("pending") @db.VarChar(20)
-  created_at   DateTime  @default(now())
+  id           Int          @id @default(autoincrement())
+  player_id    String       @db.VarChar(255)
+  payment_hash String       @unique @db.VarChar(255)
+  bolt11       String       @db.Text
+  amount_sats  Int          @db.UnsignedInt
+  memo         String?      @db.VarChar(255)
+  status       String       @default("pending") @db.VarChar(20)
+  created_at   DateTime     @default(now())
   paid_at      DateTime?
+  CollectLog   CollectLog[]
+  Score        Score[]
 
   @@index([created_at])
   @@index([status])
 }
 
 model Player {
-  id          Int           @id @default(autoincrement())
-  name        String        @db.VarChar(100)
-  createdAt   DateTime      @default(now())
-  GameSession GameSession[]
-  Score       Score[]
+  id           Int      @id @default(autoincrement())
+  player_id    String   @db.VarChar(255)
+  payment_hash String   @db.VarChar(255)
+  name         String?  @db.VarChar(100)
+  createdAt    DateTime @default(now())
 
+  @@unique([player_id, payment_hash])
   @@index([name])
+  @@index([payment_hash])
+  @@index([player_id])
 }
 
 model Score {
-  id        Int      @id @default(autoincrement())
-  player_id Int
-  time_ms   Int      @db.UnsignedInt
-  createdAt DateTime @default(now())
-  Player    Player   @relation(fields: [player_id], references: [id])
+  id           Int      @id @default(autoincrement())
+  player_id    String   @db.VarChar(255)
+  payment_hash String   @db.VarChar(255)
+  time_ms      Int      @db.UnsignedInt
+  createdAt    DateTime @default(now())
+  Invoice      Invoice  @relation(fields: [payment_hash], references: [payment_hash])
 
   @@index([player_id])
   @@index([time_ms])
+  @@index([payment_hash])
 }
 
-model Score_Temp {
-  id        Int      @id @default(autoincrement())
-  player_id Int
-  time_ms   Int      @db.UnsignedInt
-  createdAt DateTime @default(now())
+model MaintenanceConfig {
+  id                String   @id @default("main") @db.VarChar(20)
+  maintenanceMode   Boolean  @default(false) @map("maintenance_mode")
+  maintenanceWindow String   @default("02:00 - 04:00 UTC") @map("maintenance_window") @db.VarChar(120)
+  maintenanceStatus String   @default("UPGRADING NODES") @map("maintenance_status") @db.VarChar(120)
+  maintenanceNote   String   @default("กำลังอัปเกรดระบบ Lightning และประสิทธิภาพการเล่นเกม เพื่อให้ธุรกรรมเร็วและเสถียรมากขึ้น") @map("maintenance_note") @db.Text
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
-  @@index([player_id], map: "Score_player_id_idx")
-  @@index([time_ms], map: "Score_time_ms_idx")
+  @@map("maintenance_config")
 }
 
-model SessionAttempt {
-  id          Int         @id @default(autoincrement())
-  session_id  Int
-  round_index Int         @db.UnsignedTinyInt
-  time_ms     Int         @db.UnsignedInt
-  created_at  DateTime    @default(now())
-  GameSession GameSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+model CollectLog {
+  id            Int       @id @default(autoincrement())
+  player_id     String    @db.VarChar(255)
+  payment_hash  String    @db.VarChar(255)
+  round         Int       @db.UnsignedSmallInt
+  time_ms       Int?      @db.UnsignedInt
+  collect_time  String?   @db.LongText
+  collect_move  String?   @db.LongText
+  collect_fruit String?   @db.LongText
+  start_play    DateTime  @default(now())
+  end_play      DateTime?
+  submitted     Boolean   @default(false)
+  submitted_at  DateTime?
+  Invoice       Invoice   @relation(fields: [payment_hash], references: [payment_hash])
 
-  @@unique([session_id, round_index])
-  @@index([session_id])
-}
-
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model Test {
-  column_name Int?
-
-  @@ignore
-}
-
-model UserPlayLog {
-  id             Int      @id @default(autoincrement())
-  userId         String   @db.VarChar(255)
-  paymentHash    String?  @db.VarChar(255)
-  playCount      Int      @default(0)
-  paid           Boolean  @default(false)
-  scoreSubmitted Boolean  @default(false)
-  lastScore      Int?
-  createdAt      DateTime @default(now()) @db.DateTime(0)
-  updatedAt      DateTime @default(now()) @db.DateTime(0)
-
-  @@index([paymentHash], map: "paymentHash_idx")
-  @@index([userId], map: "userId_idx")
+  @@unique([player_id, payment_hash, round])
+  @@index([payment_hash])
+  @@index([player_id])
 }
 
 enum Role {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import { auth } from "@/auth";
 import { prisma } from "@/src/lib/prisma";
+import MaintenanceForm from "./maintenance-form";
 
 const spaceGrotesk = Space_Grotesk({
     subsets: ["latin"],
@@ -71,6 +72,23 @@ export default async function AdminPage() {
 
     const adminCount = users.filter((user) => user.role === "ADMIN").length;
     const userCount = users.filter((user) => user.role === "USER").length;
+
+    const maintenance =
+        (await prisma.maintenanceConfig.findUnique({
+            where: { id: "main" },
+            select: {
+                maintenanceMode: true,
+                maintenanceWindow: true,
+                maintenanceStatus: true,
+                maintenanceNote: true
+            }
+        })) ??
+        ({
+            maintenanceMode: false,
+            maintenanceWindow: "02:00 - 04:00 UTC",
+            maintenanceStatus: "UPGRADING NODES",
+            maintenanceNote: "กำลังอัปเกรดระบบ Lightning และประสิทธิภาพการเล่นเกม เพื่อให้ธุรกรรมเร็วและเสถียรมากขึ้น"
+        } as const);
 
     const percent = (count: number) => {
         if (users.length === 0) {
@@ -223,6 +241,15 @@ export default async function AdminPage() {
                             </table>
                         </div>
                     </section>
+
+                    <MaintenanceForm
+                        initialConfig={{
+                            maintenanceMode: maintenance.maintenanceMode,
+                            maintenanceWindow: maintenance.maintenanceWindow,
+                            maintenanceStatus: maintenance.maintenanceStatus,
+                            maintenanceNote: maintenance.maintenanceNote
+                        }}
+                    />
                 </div>
 
                 <aside className="space-y-6 xl:col-span-3">

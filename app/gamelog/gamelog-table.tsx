@@ -4,17 +4,18 @@ import { useMemo, useState } from "react";
 
 type GameLogItem = {
     id: number;
-    userId: string;
-    paymentHash: string | null;
-    playCount: number;
-    paid: boolean;
-    scoreSubmitted: boolean;
-    lastScore: number | null;
-    createdAt: string;
-    updatedAt: string;
+    player_id: string;
+    payment_hash: string;
+    round: number;
+    time_ms: number | null;
+    submitted: boolean;
+    start_play: string;
+    end_play: string | null;
+    submitted_at: string | null;
+    invoice_status: string;
 };
 
-type SortKey = "id" | "lastScore" | "createdAt" | "updatedAt";
+type SortKey = "id" | "round" | "time_ms" | "start_play" | "submitted_at";
 type SortDirection = "asc" | "desc";
 
 type GameLogTableProps = {
@@ -35,21 +36,23 @@ function formatDurationFromMs(totalMs: number | null) {
 export default function GameLogTable({ logs }: GameLogTableProps) {
     const [paidFilter, setPaidFilter] = useState<"all" | "paid" | "unpaid">("all");
     const [submittedFilter, setSubmittedFilter] = useState<"all" | "submitted" | "not_submitted">("all");
-    const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+    const [sortKey, setSortKey] = useState<SortKey>("start_play");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
     const rows = useMemo(() => {
         const filtered = logs.filter((log) => {
-            if (paidFilter === "paid" && !log.paid) {
+            const isPaid = log.invoice_status === "paid";
+
+            if (paidFilter === "paid" && !isPaid) {
                 return false;
             }
-            if (paidFilter === "unpaid" && log.paid) {
+            if (paidFilter === "unpaid" && isPaid) {
                 return false;
             }
-            if (submittedFilter === "submitted" && !log.scoreSubmitted) {
+            if (submittedFilter === "submitted" && !log.submitted) {
                 return false;
             }
-            if (submittedFilter === "not_submitted" && log.scoreSubmitted) {
+            if (submittedFilter === "not_submitted" && log.submitted) {
                 return false;
             }
             return true;
@@ -59,14 +62,18 @@ export default function GameLogTable({ logs }: GameLogTableProps) {
             let result = 0;
             if (sortKey === "id") {
                 result = a.id - b.id;
-            } else if (sortKey === "lastScore") {
-                const aScore = a.lastScore ?? Number.MAX_SAFE_INTEGER;
-                const bScore = b.lastScore ?? Number.MAX_SAFE_INTEGER;
+            } else if (sortKey === "round") {
+                result = a.round - b.round;
+            } else if (sortKey === "time_ms") {
+                const aScore = a.time_ms ?? Number.MAX_SAFE_INTEGER;
+                const bScore = b.time_ms ?? Number.MAX_SAFE_INTEGER;
                 result = aScore - bScore;
-            } else if (sortKey === "createdAt") {
-                result = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-            } else if (sortKey === "updatedAt") {
-                result = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+            } else if (sortKey === "start_play") {
+                result = new Date(a.start_play).getTime() - new Date(b.start_play).getTime();
+            } else if (sortKey === "submitted_at") {
+                const aSubmitted = a.submitted_at ? new Date(a.submitted_at).getTime() : 0;
+                const bSubmitted = b.submitted_at ? new Date(b.submitted_at).getTime() : 0;
+                result = aSubmitted - bSubmitted;
             }
 
             return sortDirection === "asc" ? result : -result;
@@ -106,9 +113,10 @@ export default function GameLogTable({ logs }: GameLogTableProps) {
                     className="border border-zinc-700 bg-zinc-950 px-2 py-1 text-zinc-200"
                 >
                     <option value="id">ID</option>
-                    <option value="lastScore">LAST SCORE</option>
-                    <option value="createdAt">CREATED</option>
-                    <option value="updatedAt">UPDATED</option>
+                    <option value="round">ROUND</option>
+                    <option value="time_ms">TIME</option>
+                    <option value="start_play">START</option>
+                    <option value="submitted_at">SUBMITTED</option>
                 </select>
                 <select
                     value={sortDirection}
@@ -126,49 +134,51 @@ export default function GameLogTable({ logs }: GameLogTableProps) {
                     <thead className="bg-zinc-900 text-left text-zinc-500">
                         <tr className="border-b border-zinc-800 text-[11px] uppercase tracking-[0.14em]">
                             <th className="px-4 py-3">ID</th>
-                            <th className="px-4 py-3">User ID</th>
+                            <th className="px-4 py-3">Player ID</th>
                             <th className="px-4 py-3">Payment Hash</th>
-                            <th className="px-4 py-3">Play Count</th>
+                            <th className="px-4 py-3">Round</th>
                             <th className="px-4 py-3">Paid</th>
                             <th className="px-4 py-3">Score Submitted</th>
-                            <th className="px-4 py-3">Last Score (Time)</th>
-                            <th className="px-4 py-3">Created</th>
-                            <th className="px-4 py-3">Updated</th>
+                            <th className="px-4 py-3">Round Time</th>
+                            <th className="px-4 py-3">Start Play</th>
+                            <th className="px-4 py-3">Submitted At</th>
                         </tr>
                     </thead>
                     <tbody>
                         {rows.map((log) => (
                             <tr key={log.id} className="border-t border-zinc-800 bg-black/30 hover:bg-zinc-900/70">
                                 <td className="px-4 py-3 text-zinc-300">{log.id}</td>
-                                <td className="px-4 py-3 font-medium text-zinc-100">{log.userId}</td>
-                                <td className="px-4 py-3 text-zinc-400">{log.paymentHash ?? "-"}</td>
-                                <td className="px-4 py-3 text-orange-300">{log.playCount}</td>
-                                <td className="px-4 py-3">
-                                    <span
-                                        className={`px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
-                                            log.paid ? "bg-lime-400 text-black" : "bg-zinc-800 text-zinc-300"
-                                        }`}
-                                    >
-                                        {log.paid ? "YES" : "NO"}
-                                    </span>
+                                <td className="px-4 py-3 font-medium text-zinc-100">{log.player_id}</td>
+                                <td className="max-w-[240px] truncate px-4 py-3 text-zinc-400" title={log.payment_hash}>
+                                    {log.payment_hash}
                                 </td>
+                                <td className="px-4 py-3 text-orange-300">{log.round}</td>
                                 <td className="px-4 py-3">
                                     <span
                                         className={`px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
-                                            log.scoreSubmitted
-                                                ? "bg-fuchsia-400 text-black"
+                                            log.invoice_status === "paid"
+                                                ? "bg-lime-400 text-black"
                                                 : "bg-zinc-800 text-zinc-300"
                                         }`}
                                     >
-                                        {log.scoreSubmitted ? "YES" : "NO"}
+                                        {log.invoice_status === "paid" ? "YES" : "NO"}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-lime-300">{formatDurationFromMs(log.lastScore)}</td>
+                                <td className="px-4 py-3">
+                                    <span
+                                        className={`px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                                            log.submitted ? "bg-fuchsia-400 text-black" : "bg-zinc-800 text-zinc-300"
+                                        }`}
+                                    >
+                                        {log.submitted ? "YES" : "NO"}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 text-lime-300">{formatDurationFromMs(log.time_ms)}</td>
                                 <td className="px-4 py-3 text-xs text-zinc-400">
-                                    {new Date(log.createdAt).toLocaleString("th-TH")}
+                                    {new Date(log.start_play).toLocaleString("th-TH")}
                                 </td>
                                 <td className="px-4 py-3 text-xs text-zinc-400">
-                                    {new Date(log.updatedAt).toLocaleString("th-TH")}
+                                    {log.submitted_at ? new Date(log.submitted_at).toLocaleString("th-TH") : "-"}
                                 </td>
                             </tr>
                         ))}

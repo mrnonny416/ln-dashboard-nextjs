@@ -15,11 +15,11 @@ const manrope = Manrope({
 
 type ScoreApiItem = {
     id: number;
-    player_id: number;
+    player_id: string;
     playerName: string | null;
     time_ms: number;
     createdAt: string;
-    source: "score" | "score_jan_feb_2026";
+    source: "score";
 };
 
 export default async function DashboardPage() {

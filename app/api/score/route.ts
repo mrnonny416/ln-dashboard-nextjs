@@ -1,50 +1,47 @@
 import { prisma } from '@/src/lib/prisma'
 
 export async function GET() {
-  const [scores, score_jan, players] = await Promise.all([
-    prisma.score.findMany({
-      select: {
-        id: true,
-        player_id: true,
-        time_ms: true,
-        createdAt: true,
-        Player: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    }),
-    prisma.score_Temp.findMany(),
-    prisma.player.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    }),
-  ])
+  const scores = await prisma.score.findMany({
+    select: {
+      id: true,
+      player_id: true,
+      payment_hash: true,
+      time_ms: true,
+      createdAt: true,
+    },
+  })
 
-  const playerNameById = new Map(players.map((player) => [player.id, player.name]))
+  if (scores.length === 0) {
+    return Response.json([])
+  }
 
-  const normalizedScores = scores.map((score) => ({
+  const players = await prisma.player.findMany({
+    where: {
+      OR: scores.map((score) => ({
+        player_id: score.player_id,
+        payment_hash: score.payment_hash,
+      })),
+    },
+    select: {
+      player_id: true,
+      payment_hash: true,
+      name: true,
+    },
+  })
+
+  const playerNameByComposite = new Map(
+    players.map((player) => [`${player.player_id}:${player.payment_hash}`, player.name])
+  )
+
+  const mergedScores = scores.map((score) => ({
     id: score.id,
     player_id: score.player_id,
-    playerName: score.Player?.name ?? playerNameById.get(score.player_id) ?? null,
+    playerName:
+      playerNameByComposite.get(`${score.player_id}:${score.payment_hash}`) ?? null,
     time_ms: score.time_ms,
     createdAt: score.createdAt,
-    source: 'score',
+    source: 'score' as const,
   }))
-
-  const normalizedArchived = score_jan.map((score) => ({
-    id: score.id,
-    player_id: score.player_id,
-    playerName: playerNameById.get(score.player_id) ?? null,
-    time_ms: score.time_ms,
-    createdAt: score.createdAt,
-    source: 'score_jan_feb_2026',
-  }))
-
-  const mergedScores = [...normalizedScores, ...normalizedArchived]
 
   mergedScores.sort((a, b) => {
     const timeDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()

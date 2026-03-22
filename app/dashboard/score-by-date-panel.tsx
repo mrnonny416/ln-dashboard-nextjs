@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 
 type ScoreApiItem = {
     id: number;
-    player_id: number;
+    player_id: string;
     playerName: string | null;
     time_ms: number;
     createdAt: string;
-    source: "score" | "score_jan_feb_2026";
+    source: "score";
 };
 
 type ScoreByDatePanelProps = {

@@ -26,18 +26,32 @@ export default async function GameLogPage() {
         redirect("/dashboard");
     }
 
-    const logs = await prisma.userPlayLog.findMany({
-        orderBy: { createdAt: "desc" }
+    const logs = await prisma.collectLog.findMany({
+        orderBy: { start_play: "desc" },
+        include: {
+            Invoice: {
+                select: {
+                    status: true
+                }
+            }
+        }
     });
 
     const serializableLogs = logs.map((log) => ({
-        ...log,
-        createdAt: log.createdAt.toISOString(),
-        updatedAt: log.updatedAt.toISOString()
+        id: log.id,
+        player_id: log.player_id,
+        payment_hash: log.payment_hash,
+        round: log.round,
+        time_ms: log.time_ms,
+        submitted: log.submitted,
+        start_play: log.start_play.toISOString(),
+        end_play: log.end_play ? log.end_play.toISOString() : null,
+        submitted_at: log.submitted_at ? log.submitted_at.toISOString() : null,
+        invoice_status: log.Invoice.status
     }));
 
-    const paidCount = logs.filter((log) => log.paid).length;
-    const submittedCount = logs.filter((log) => log.scoreSubmitted).length;
+    const paidCount = logs.filter((log) => log.Invoice.status === "paid").length;
+    const submittedCount = logs.filter((log) => log.submitted).length;
 
     return (
         <main className={`${manrope.className} relative min-h-screen overflow-hidden bg-[#0b0b0b] pb-20 text-zinc-100`}>
@@ -86,7 +100,7 @@ export default async function GameLogPage() {
                     >
                         GAME LOG TABLE
                     </h2>
-                    <p className="mt-2 text-sm text-zinc-400">ตารางการเล่นทั้งหมดจาก UserPlayLog</p>
+                    <p className="mt-2 text-sm text-zinc-400">ตารางการเล่นทั้งหมดจาก CollectLog</p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">
@@ -121,7 +135,7 @@ export default async function GameLogPage() {
                         <span
                             className={`${spaceGrotesk.className} text-xs font-bold uppercase tracking-[0.15em] text-orange-300`}
                         >
-                            USER_PLAY_LOG.DAT
+                            COLLECT_LOG.DAT
                         </span>
                         <span className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">
                             records_found: {logs.length.toString().padStart(3, "0")}
