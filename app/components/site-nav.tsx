@@ -24,6 +24,7 @@ const authedNavItems: NavItem[] = [
 ];
 
 const adminOnlyNavItems: NavItem[] = [
+    { href: "/invoice", label: "INVOICE", match: (pathname) => pathname.startsWith("/invoice") },
     { href: "/admin", label: "ADMIN", match: (pathname) => pathname.startsWith("/admin") },
     { href: "/gamelog", label: "GAMELOG", match: (pathname) => pathname.startsWith("/gamelog") }
 ];

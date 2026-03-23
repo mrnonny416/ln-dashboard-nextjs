@@ -95,6 +95,7 @@ model Score {
   payment_hash String   @db.VarChar(255)
   time_ms      Int      @db.UnsignedInt
   createdAt    DateTime @default(now())
+  visible      Boolean  @default(true)
   Invoice      Invoice  @relation(fields: [payment_hash], references: [payment_hash])
 
   @@index([player_id])

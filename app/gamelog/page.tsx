@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import { auth } from "@/auth";
+import { buildPairCheatMap } from "@/src/lib/anti-cheat";
 import { prisma } from "@/src/lib/prisma";
 import GameLogTable from "./gamelog-table";
 
@@ -37,18 +37,63 @@ export default async function GameLogPage() {
         }
     });
 
-    const serializableLogs = logs.map((log) => ({
-        id: log.id,
-        player_id: log.player_id,
-        payment_hash: log.payment_hash,
-        round: log.round,
-        time_ms: log.time_ms,
-        submitted: log.submitted,
-        start_play: log.start_play.toISOString(),
-        end_play: log.end_play ? log.end_play.toISOString() : null,
-        submitted_at: log.submitted_at ? log.submitted_at.toISOString() : null,
-        invoice_status: log.Invoice.status
-    }));
+    const uniquePlayerPairs = Array.from(new Set(logs.map((log) => `${log.player_id}:${log.payment_hash}`))).map(
+        (key) => {
+            const [player_id, payment_hash] = key.split(":");
+            return { player_id, payment_hash };
+        }
+    );
+
+    const players = await prisma.player.findMany({
+        where: {
+            OR: uniquePlayerPairs
+        },
+        select: {
+            player_id: true,
+            payment_hash: true,
+            name: true
+        }
+    });
+
+    const playerNameByPair = new Map(
+        players.map((player) => [`${player.player_id}:${player.payment_hash}`, player.name])
+    );
+
+    const cheatByPair = buildPairCheatMap(
+        logs.map((log) => ({
+            player_id: log.player_id,
+            payment_hash: log.payment_hash,
+            round: log.round,
+            time_ms: log.time_ms,
+            start_play: log.start_play,
+            end_play: log.end_play,
+            submitted: log.submitted,
+            collect_time: log.collect_time,
+            collect_move: log.collect_move,
+            collect_fruit: log.collect_fruit
+        }))
+    );
+
+    const serializableLogs = logs.map((log) => {
+        const key = `${log.player_id}:${log.payment_hash}`;
+        const cheatResult = cheatByPair.get(key) ?? { isCheater: false, reasons: [] };
+
+        return {
+            id: log.id,
+            player_id: log.player_id,
+            player_name: playerNameByPair.get(`${log.player_id}:${log.payment_hash}`) ?? null,
+            payment_hash: log.payment_hash,
+            round: log.round,
+            time_ms: log.time_ms,
+            submitted: log.submitted,
+            start_play: log.start_play.toISOString(),
+            end_play: log.end_play ? log.end_play.toISOString() : null,
+            submitted_at: log.submitted_at ? log.submitted_at.toISOString() : null,
+            invoice_status: log.Invoice.status,
+            isCheater: cheatResult.isCheater,
+            cheatReasons: cheatResult.reasons
+        };
+    });
 
     const paidCount = logs.filter((log) => log.Invoice.status === "paid").length;
     const submittedCount = logs.filter((log) => log.submitted).length;
@@ -75,20 +120,6 @@ export default async function GameLogPage() {
                         >
                             BITSTREAM_CMD GAMELOG
                         </h1>
-                    </div>
-                    <div className="ml-auto flex gap-2">
-                        <Link
-                            href="/admin"
-                            className="border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-200 hover:border-orange-400 hover:text-orange-300"
-                        >
-                            Admin
-                        </Link>
-                        <Link
-                            href="/dashboard"
-                            className="border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-200 hover:border-orange-400 hover:text-orange-300"
-                        >
-                            Dashboard
-                        </Link>
                     </div>
                 </div>
             </header>

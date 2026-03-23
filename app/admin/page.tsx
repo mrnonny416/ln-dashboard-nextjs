@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import Link from "next/link";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import { auth } from "@/auth";
 import { prisma } from "@/src/lib/prisma";
@@ -119,26 +118,6 @@ export default async function AdminPage() {
                         >
                             BITSTREAM_CMD ADMIN
                         </h1>
-                    </div>
-                    <div className="ml-auto flex gap-2">
-                        <Link
-                            href="/gamelog"
-                            className="border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-200 hover:border-orange-400 hover:text-orange-300"
-                        >
-                            GameLog
-                        </Link>
-                        <Link
-                            href="/dashboard"
-                            className="border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-200 hover:border-orange-400 hover:text-orange-300"
-                        >
-                            Dashboard
-                        </Link>
-                        <Link
-                            href="/"
-                            className="border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-200 hover:border-orange-400 hover:text-orange-300"
-                        >
-                            Home
-                        </Link>
                     </div>
                 </div>
             </header>

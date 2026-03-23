@@ -16,10 +16,14 @@ const manrope = Manrope({
 type ScoreApiItem = {
     id: number;
     player_id: string;
+    payment_hash: string;
     playerName: string | null;
     time_ms: number;
+    visible: boolean;
     createdAt: string;
     source: "score";
+    isCheater: boolean;
+    cheatReasons: string[];
 };
 
 export default async function DashboardPage() {
@@ -32,6 +36,34 @@ export default async function DashboardPage() {
     const appBaseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
     const response = await fetch(`${appBaseUrl}/api/score`, { cache: "no-store" });
     const scores = (response.ok ? await response.json() : []) as ScoreApiItem[];
+
+    let cleanCount = 0;
+    let warningCount = 0;
+    let cheaterCount = 0;
+
+    for (const score of scores) {
+        if (!score.isCheater) {
+            cleanCount += 1;
+            continue;
+        }
+
+        const hasOnlyIdleReason =
+            score.cheatReasons.length > 0 && score.cheatReasons.every((reason) => reason === "idle_time_too_long");
+
+        if (hasOnlyIdleReason) {
+            warningCount += 1;
+        } else {
+            cheaterCount += 1;
+        }
+    }
+
+    const visibleCount = scores.filter((score) => score.visible).length;
+    const hiddenCount = scores.length - visibleCount;
+    const latestCreatedAtMs = scores.reduce((max, score) => {
+        const createdAtMs = new Date(score.createdAt).getTime();
+        return Number.isFinite(createdAtMs) ? Math.max(max, createdAtMs) : max;
+    }, 0);
+    const latestCreatedAtText = latestCreatedAtMs > 0 ? new Date(latestCreatedAtMs).toLocaleString("th-TH") : "-";
 
     return (
         <main className={`${manrope.className} relative min-h-screen overflow-hidden bg-[#0b0b0b] pb-24 text-zinc-100`}>
@@ -70,25 +102,33 @@ export default async function DashboardPage() {
                             <p
                                 className={`${spaceGrotesk.className} text-[10px] uppercase tracking-[0.14em] text-zinc-500`}
                             >
-                                ACCESS LEVEL
+                                TOTAL SUBMISSIONS
                             </p>
-                            <p className="mt-2 text-2xl font-bold text-orange-300">{session.user.role}</p>
+                            <p className="mt-2 text-2xl font-bold text-orange-300">{scores.length.toLocaleString()}</p>
+                            <p className="mt-1 text-xs text-zinc-500">latest: {latestCreatedAtText}</p>
                         </div>
                         <div className="border border-zinc-800 bg-zinc-900/90 p-4">
                             <p
                                 className={`${spaceGrotesk.className} text-[10px] uppercase tracking-[0.14em] text-zinc-500`}
                             >
-                                NODE STATUS
+                                RISK OVERVIEW
                             </p>
-                            <p className="mt-2 text-2xl font-bold text-lime-300">ONLINE</p>
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs font-black uppercase tracking-[0.12em]">
+                                <span className="bg-lime-400 px-2 py-1 text-black">Clean {cleanCount}</span>
+                                <span className="bg-amber-400 px-2 py-1 text-black">Warning {warningCount}</span>
+                                <span className="bg-red-500 px-2 py-1 text-white">Cheater {cheaterCount}</span>
+                            </div>
                         </div>
                         <div className="border border-zinc-800 bg-zinc-900/90 p-4">
                             <p
                                 className={`${spaceGrotesk.className} text-[10px] uppercase tracking-[0.14em] text-zinc-500`}
                             >
-                                SECURITY CHANNEL
+                                VISIBILITY
                             </p>
-                            <p className="mt-2 text-2xl font-bold text-fuchsia-300">SECURE</p>
+                            <p className="mt-2 text-2xl font-bold text-fuchsia-300">
+                                {visibleCount}/{scores.length}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">hidden: {hiddenCount}</p>
                         </div>
                     </div>
 
