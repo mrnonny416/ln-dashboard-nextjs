@@ -65,6 +65,7 @@ export async function GET() {
       return {
         isCheater: pairResult?.isCheater ?? false,
         cheatReasons: pairResult?.reasons ?? [],
+        cheatEvidence: pairResult?.reasonEvidence ?? {},
       }
     })(),
     id: score.id,

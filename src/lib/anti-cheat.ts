@@ -16,6 +16,7 @@ export type AntiCheatInput = {
 export type AntiCheatResult = {
   isCheater: boolean;
   reasons: string[];
+  reasonEvidence: Record<string, string[]>;
 };
 
 export type CollectLogCheatSource = {
@@ -88,35 +89,59 @@ function parseArrayPayload(value: string | null): unknown[] | null {
 
 export function evaluateCollectLogCheat(log: AntiCheatInput): AntiCheatResult {
   const reasons = new Set<string>();
+  const reasonEvidence = new Map<string, Set<string>>();
+
+  const addEvidence = (reason: string, lines: string[]) => {
+    if (!reasonEvidence.has(reason)) {
+      reasonEvidence.set(reason, new Set<string>());
+    }
+    const bucket = reasonEvidence.get(reason)!;
+    lines.forEach((line) => {
+      if (line) {
+        bucket.add(line);
+      }
+    });
+  };
 
   if (!(log.end_play instanceof Date) || Number.isNaN(log.end_play?.getTime())) {
     reasons.add("invalid_end_play");
+    addEvidence("invalid_end_play", ["end_play is null or invalid date"]);
   }
 
   if (!(log.start_play instanceof Date) || Number.isNaN(log.start_play.getTime())) {
     reasons.add("invalid_start_play");
+    addEvidence("invalid_start_play", ["start_play is invalid date"]);
   }
 
   if (log.end_play && log.start_play && log.end_play.getTime() <= log.start_play.getTime()) {
     reasons.add("end_before_or_equal_start");
+    addEvidence("end_before_or_equal_start", [
+      `start=${log.start_play.toISOString()} end=${log.end_play.toISOString()}`,
+    ]);
   }
 
   if (log.time_ms === null || log.time_ms <= 0) {
     reasons.add("invalid_time_ms");
+    addEvidence("invalid_time_ms", [`time_ms=${log.time_ms}`]);
   }
 
   if (log.time_ms !== null && log.time_ms < ANTI_CHEAT_CONFIG.minTimeMs) {
     reasons.add("below_min_time_limit");
+    addEvidence("below_min_time_limit", [`time_ms=${log.time_ms} < ${ANTI_CHEAT_CONFIG.minTimeMs}`]);
   }
 
   if (!log.submitted) {
     reasons.add("not_submitted");
+    addEvidence("not_submitted", ["submitted=false"]);
   }
 
   if (log.end_play && log.time_ms !== null && log.time_ms > 0) {
     const actualDuration = log.end_play.getTime() - log.start_play.getTime();
     if (actualDuration - log.time_ms > ANTI_CHEAT_CONFIG.timeToleranceMs) {
       reasons.add("time_mismatch");
+      addEvidence("time_mismatch", [
+        `server=${actualDuration}ms, client=${log.time_ms}ms, diff=${actualDuration - log.time_ms}ms`,
+      ]);
     }
   }
 
@@ -125,6 +150,9 @@ export function evaluateCollectLogCheat(log: AntiCheatInput): AntiCheatResult {
 
   if (collectTimes && collectFruits && collectTimes.length !== collectFruits.length) {
     reasons.add("collect_count_mismatch");
+    addEvidence("collect_count_mismatch", [
+      `collect_time count=${collectTimes.length}, collect_fruit count=${collectFruits.length}`,
+    ]);
   }
 
   const v2Result = evaluateCollectLogCheatV2({
@@ -138,9 +166,19 @@ export function evaluateCollectLogCheat(log: AntiCheatInput): AntiCheatResult {
     reasons.add(reason);
   }
 
+  for (const [reason, lines] of Object.entries(v2Result.reasonEvidence)) {
+    addEvidence(reason, lines);
+  }
+
+  const serializedEvidence: Record<string, string[]> = {};
+  for (const [reason, lines] of reasonEvidence.entries()) {
+    serializedEvidence[reason] = Array.from(lines);
+  }
+
   return {
     isCheater: reasons.size > 0,
     reasons: Array.from(reasons),
+    reasonEvidence: serializedEvidence,
   };
 }
 
@@ -195,15 +233,30 @@ export function buildPairCheatMap(logs: CollectLogCheatSource[]): Map<string, An
 
 export function mergeCheatResults(results: AntiCheatResult[]): AntiCheatResult {
   const reasons = new Set<string>();
+  const reasonEvidence = new Map<string, Set<string>>();
 
   for (const result of results) {
     for (const reason of result.reasons) {
       reasons.add(reason);
     }
+
+    for (const [reason, lines] of Object.entries(result.reasonEvidence)) {
+      if (!reasonEvidence.has(reason)) {
+        reasonEvidence.set(reason, new Set<string>());
+      }
+      const bucket = reasonEvidence.get(reason)!;
+      lines.forEach((line) => bucket.add(line));
+    }
+  }
+
+  const serializedEvidence: Record<string, string[]> = {};
+  for (const [reason, lines] of reasonEvidence.entries()) {
+    serializedEvidence[reason] = Array.from(lines);
   }
 
   return {
     isCheater: results.some((result) => result.isCheater),
     reasons: Array.from(reasons),
+    reasonEvidence: serializedEvidence,
   };
 }

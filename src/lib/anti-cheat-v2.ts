@@ -1,6 +1,7 @@
 export type V2CheatResult = {
   isCheater: boolean;
   reasons: string[];
+  reasonEvidence: Record<string, string[]>;
 };
 
 export type V2CheatInput = {
@@ -297,8 +298,44 @@ function sequenceSimilarity(a: string[], b: string[]): number {
   return matches / minLen;
 }
 
+function directionLabel(input: string | undefined): string {
+  const token = normalizedInputToken(input);
+  if (token === "U") return "UP";
+  if (token === "D") return "DOWN";
+  if (token === "L") return "LEFT";
+  if (token === "R") return "RIGHT";
+  return token === "?" ? "UNKNOWN" : token;
+}
+
+function addReason(
+  reasons: Set<string>,
+  evidence: Map<string, Set<string>>,
+  code: string,
+  details: string[] = []
+) {
+  reasons.add(code);
+  if (!evidence.has(code)) {
+    evidence.set(code, new Set<string>());
+  }
+  const bucket = evidence.get(code)!;
+  details.forEach((detail) => {
+    if (detail) {
+      bucket.add(detail);
+    }
+  });
+}
+
+function toReasonEvidenceRecord(evidence: Map<string, Set<string>>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [code, details] of evidence.entries()) {
+    out[code] = Array.from(details);
+  }
+  return out;
+}
+
 export function evaluateCollectLogCheatV2(log: V2CheatInput): V2CheatResult {
   const reasons = new Set<string>();
+  const reasonEvidence = new Map<string, Set<string>>();
 
   const collectTimes = normalizeTimeArray(log.collect_time);
   const movePoints = normalizeMoves(log.collect_move);
@@ -308,17 +345,23 @@ export function evaluateCollectLogCheatV2(log: V2CheatInput): V2CheatResult {
     const fruitDiffs = diffs(collectTimes);
     const varCollectIntervals = variance(fruitDiffs);
     if (varCollectIntervals <= V2_CONFIG.collectIntervalVarianceMin) {
-      reasons.add("collect_time_low_variance");
+      addReason(reasons, reasonEvidence, "collect_time_low_variance", [
+        `interval variance=${varCollectIntervals.toFixed(2)} <= ${V2_CONFIG.collectIntervalVarianceMin}`,
+      ]);
     }
 
     const tooFastFruitCount = fruitDiffs.filter((delta) => delta < V2_CONFIG.minFruitIntervalMs).length;
     if (tooFastFruitCount >= V2_CONFIG.minFruitTooFastCount) {
-      reasons.add("fruit_interval_too_fast");
+      addReason(reasons, reasonEvidence, "fruit_interval_too_fast", [
+        `too-fast fruit intervals=${tooFastFruitCount}, threshold=${V2_CONFIG.minFruitTooFastCount}, minInterval=${V2_CONFIG.minFruitIntervalMs}ms`,
+      ]);
     }
   }
 
   if (collectTimes.length > 0 && fruitCount > 0 && fruitCount !== collectTimes.length) {
-    reasons.add("collect_count_mismatch");
+    addReason(reasons, reasonEvidence, "collect_count_mismatch", [
+      `collect_time count=${collectTimes.length}, collect_fruit count=${fruitCount}`,
+    ]);
   }
 
   const moveTimes = movePoints.map((point) => point.t);
@@ -327,17 +370,32 @@ export function evaluateCollectLogCheatV2(log: V2CheatInput): V2CheatResult {
   if (moveIntervals.length >= V2_CONFIG.minMoveIntervalsForRegularity) {
     const intervalsStd = stdDev(moveIntervals);
     if (intervalsStd <= V2_CONFIG.movementStdDevMinMs) {
-      reasons.add("movement_interval_too_regular");
+      addReason(reasons, reasonEvidence, "movement_interval_too_regular", [
+        `interval stdDev=${intervalsStd.toFixed(2)}ms <= ${V2_CONFIG.movementStdDevMinMs}ms`,
+      ]);
     }
 
-    const tooFastCount = moveIntervals.filter((interval) => interval < V2_CONFIG.minReactionMs).length;
+    const tooFastEvents = moveIntervals
+      .map((interval, index) => ({ interval, index }))
+      .filter((event) => event.interval < V2_CONFIG.minReactionMs);
+    const tooFastCount = tooFastEvents.length;
     if (tooFastCount >= V2_CONFIG.minTooFastIntervals) {
-      reasons.add("reaction_time_too_fast");
+      const eventLines = tooFastEvents.slice(0, 10).map(({ interval, index }) => {
+        const from = movePoints[index];
+        const to = movePoints[index + 1];
+        return `t=${from?.t ?? "?"}->${to?.t ?? "?"}ms ${directionLabel(from?.input)} -> ${directionLabel(to?.input)} in ${interval}ms`;
+      });
+      addReason(reasons, reasonEvidence, "reaction_time_too_fast", [
+        `too-fast moves=${tooFastCount}, threshold=${V2_CONFIG.minTooFastIntervals}, minReaction=${V2_CONFIG.minReactionMs}ms`,
+        ...eventLines,
+      ]);
     }
 
     const maxInterval = Math.max(...moveIntervals);
     if (maxInterval > V2_CONFIG.maxIdleMs) {
-      reasons.add("idle_time_too_long");
+      addReason(reasons, reasonEvidence, "idle_time_too_long", [
+        `max interval=${maxInterval}ms > ${V2_CONFIG.maxIdleMs}ms`,
+      ]);
     }
   }
 
@@ -346,48 +404,69 @@ export function evaluateCollectLogCheatV2(log: V2CheatInput): V2CheatResult {
     .filter((token) => token !== "?");
 
   if (tokens.length >= V2_CONFIG.minMovesForEntropy && entropy(tokens) < V2_CONFIG.minInputEntropy) {
-    reasons.add("low_input_entropy");
+    const tokenEntropy = entropy(tokens);
+    addReason(reasons, reasonEvidence, "low_input_entropy", [
+      `entropy=${tokenEntropy.toFixed(3)} < ${V2_CONFIG.minInputEntropy}`,
+    ]);
   }
 
   if (tokens.length >= V2_CONFIG.minMovesForAlternatingPattern && detectAlternatingPattern(tokens)) {
-    reasons.add("repeating_input_pattern");
+    addReason(reasons, reasonEvidence, "repeating_input_pattern", [
+      `alternating pattern detected from ${tokens.length} moves`,
+    ]);
   }
 
   return {
     isCheater: reasons.size > 0,
     reasons: Array.from(reasons),
+    reasonEvidence: toReasonEvidenceRecord(reasonEvidence),
   };
 }
 
 export function evaluatePairCheatV2(logs: V2CheatInput[]): V2CheatResult {
   const reasons = new Set<string>();
+  const reasonEvidence = new Map<string, Set<string>>();
   if (logs.length < V2_CONFIG.minRoundsForPairCheck) {
-    return { isCheater: false, reasons: [] };
+    return { isCheater: false, reasons: [], reasonEvidence: {} };
   }
 
-  const sequences = [...logs]
+  const sortedLogs = [...logs].sort((a, b) => a.round - b.round);
+  const sequences = sortedLogs
     .sort((a, b) => a.round - b.round)
-    .map((log) => normalizeMoves(log.collect_move).map((point) => normalizedInputToken(point.input)))
-    .filter((sequence) => sequence.length >= V2_CONFIG.minMovesForPairCompare);
+    .map((log) => ({
+      round: log.round,
+      sequence: normalizeMoves(log.collect_move).map((point) => normalizedInputToken(point.input)),
+    }))
+    .filter((item) => item.sequence.length >= V2_CONFIG.minMovesForPairCompare);
 
   if (sequences.length < V2_CONFIG.minRoundsForPairCheck) {
-    return { isCheater: false, reasons: [] };
+    return { isCheater: false, reasons: [], reasonEvidence: {} };
   }
 
   let matchingPairs = 0;
+  const pairLines: string[] = [];
   for (let i = 1; i < sequences.length; i += 1) {
-    const sim = sequenceSimilarity(sequences[i - 1], sequences[i]);
+    const prev = sequences[i - 1];
+    const current = sequences[i];
+    const sim = sequenceSimilarity(prev.sequence, current.sequence);
     if (sim >= V2_CONFIG.pairPatternMatchRatio) {
       matchingPairs += 1;
+      pairLines.push(
+        `round ${prev.round} -> ${current.round} similarity=${sim.toFixed(4)} (len=${Math.min(prev.sequence.length, current.sequence.length)})`
+      );
     }
   }
 
   if (matchingPairs >= V2_CONFIG.minPairMatchesForFlag) {
-    reasons.add("pattern_repeat_across_rounds");
+    addReason(reasons, reasonEvidence, "pattern_repeat_across_rounds", [
+      `matching pairs=${matchingPairs}, threshold=${V2_CONFIG.minPairMatchesForFlag}, ratio>=${V2_CONFIG.pairPatternMatchRatio}`,
+      ...pairLines,
+    ]);
   }
 
   return {
     isCheater: reasons.size > 0,
     reasons: Array.from(reasons),
+    reasonEvidence: toReasonEvidenceRecord(reasonEvidence),
   };
 }

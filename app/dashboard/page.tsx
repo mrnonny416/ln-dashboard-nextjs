@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import { auth } from "@/auth";
+import { getRiskStatus } from "@/src/lib/risk-level";
 import ScoreByDatePanel from "./score-by-date-panel";
 
 const spaceGrotesk = Space_Grotesk({
@@ -24,6 +25,7 @@ type ScoreApiItem = {
     source: "score";
     isCheater: boolean;
     cheatReasons: string[];
+    cheatEvidence: Record<string, string[]>;
 };
 
 export default async function DashboardPage() {
@@ -39,20 +41,28 @@ export default async function DashboardPage() {
 
     let cleanCount = 0;
     let warningCount = 0;
+    let highRiskCount = 0;
     let cheaterCount = 0;
 
     for (const score of scores) {
-        if (!score.isCheater) {
+        const status = getRiskStatus(score.isCheater, score.cheatReasons);
+
+        if (status === "NORMAL") {
             cleanCount += 1;
             continue;
         }
 
-        const hasOnlyIdleReason =
-            score.cheatReasons.length > 0 && score.cheatReasons.every((reason) => reason === "idle_time_too_long");
-
-        if (hasOnlyIdleReason) {
+        if (status === "WARNING") {
             warningCount += 1;
-        } else {
+            continue;
+        }
+
+        if (status === "HIGH_RISK") {
+            highRiskCount += 1;
+            continue;
+        }
+
+        if (status === "CHEATER") {
             cheaterCount += 1;
         }
     }
@@ -116,6 +126,7 @@ export default async function DashboardPage() {
                             <div className="mt-2 flex flex-wrap gap-2 text-xs font-black uppercase tracking-[0.12em]">
                                 <span className="bg-lime-400 px-2 py-1 text-black">Clean {cleanCount}</span>
                                 <span className="bg-amber-400 px-2 py-1 text-black">Warning {warningCount}</span>
+                                <span className="bg-orange-500 px-2 py-1 text-white">High Risk {highRiskCount}</span>
                                 <span className="bg-red-500 px-2 py-1 text-white">Cheater {cheaterCount}</span>
                             </div>
                         </div>

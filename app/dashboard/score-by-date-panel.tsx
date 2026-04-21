@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { formatCheatReason } from "@/src/lib/anti-cheat";
+import { getRiskBadgeClass, getRiskStatus } from "@/src/lib/risk-level";
 
 type ScoreApiItem = {
     id: number;
@@ -14,6 +15,7 @@ type ScoreApiItem = {
     source: "score";
     isCheater: boolean;
     cheatReasons: string[];
+    cheatEvidence: Record<string, string[]>;
 };
 
 type ScoreByDatePanelProps = {
@@ -133,31 +135,6 @@ function shortHash(hash: string, head = 12, tail = 8) {
         return hash;
     }
     return `${hash.slice(0, head)}...${hash.slice(-tail)}`;
-}
-
-type RiskStatus = "NORMAL" | "WARNING" | "CHEATER";
-
-function getRiskStatus(isCheater: boolean, reasons: string[]): RiskStatus {
-    if (!isCheater) {
-        return "NORMAL";
-    }
-
-    const hasOnlyIdleReason = reasons.length > 0 && reasons.every((reason) => reason === "idle_time_too_long");
-    if (hasOnlyIdleReason) {
-        return "WARNING";
-    }
-
-    return "CHEATER";
-}
-
-function getRiskBadgeClass(status: RiskStatus): string {
-    if (status === "CHEATER") {
-        return "bg-red-500 text-white";
-    }
-    if (status === "WARNING") {
-        return "bg-amber-400 text-black";
-    }
-    return "bg-lime-400 text-black";
 }
 
 export default function ScoreByDatePanel({ scores, headingClassName }: ScoreByDatePanelProps) {
@@ -466,14 +443,31 @@ export default function ScoreByDatePanel({ scores, headingClassName }: ScoreByDa
 
                                                             {score.isCheater && score.cheatReasons.length > 0 ? (
                                                                 <div className="mt-2 border-t border-zinc-800 pt-2">
-                                                                    <div className="flex flex-wrap gap-1">
+                                                                    <div className="space-y-2">
                                                                         {score.cheatReasons.map((reason) => (
-                                                                            <span
+                                                                            <div
                                                                                 key={`${score.id}-${reason}`}
-                                                                                className="px-1.5 py-0.5 text-[10px] font-semibold tracking-[0.08em] bg-red-500/20 text-red-200 border border-red-500/40"
+                                                                                className="rounded border border-red-500/30 bg-red-500/10 p-2"
                                                                             >
-                                                                                {formatCheatReason(reason)}
-                                                                            </span>
+                                                                                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-red-200">
+                                                                                    {formatCheatReason(reason)}
+                                                                                </p>
+                                                                                {score.cheatEvidence?.[reason]
+                                                                                    ?.length ? (
+                                                                                    <div className="mt-1 space-y-1">
+                                                                                        {score.cheatEvidence[
+                                                                                            reason
+                                                                                        ].map((line, lineIndex) => (
+                                                                                            <p
+                                                                                                key={`${score.id}-${reason}-${lineIndex}`}
+                                                                                                className="text-[10px] leading-tight text-red-300"
+                                                                                            >
+                                                                                                - {line}
+                                                                                            </p>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                ) : null}
+                                                                            </div>
                                                                         ))}
                                                                     </div>
                                                                 </div>
